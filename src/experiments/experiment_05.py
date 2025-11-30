@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.preprocessing import StandardScaler
+import shap
 
 from config import (
     AUDIO_FILE, TEXT_FILE, LABELS_FILE, SPLIT_FILES,
@@ -11,8 +12,7 @@ from models import get_model_configurations, get_data_for_model
 from utils import (
     threshold_search,
     compute_shap_values,
-    print_results_table,
-    analyze_model_families
+    print_results_table
 )
 
 
@@ -23,6 +23,7 @@ class DepressionDetectionExperiment:
         self.common_idx = None
 
     def load_and_preprocess_data(self):
+        # Load aligned audio, text, labels + split indices
         self.data_splits, self.common_idx = get_data_splits(
             AUDIO_FILE, TEXT_FILE, LABELS_FILE
         )
@@ -81,8 +82,8 @@ class DepressionDetectionExperiment:
                 if hasattr(model, "predict_proba"):
                     proba = model.predict_proba(X_test)[:, 1]
                 else:
-                    s = model.decision_function(X_test)
-                    proba = (s - s.min()) / (s.max() - s.min() + 1e-8)
+                    scores = model.decision_function(X_test)
+                    proba = (scores - scores.min()) / (scores.max() - scores.min() + 1e-8)
 
                 metrics = threshold_search(y_test, proba)
 
@@ -101,8 +102,11 @@ class DepressionDetectionExperiment:
         audio_models = {k: v for k, v in self.results.items() if k.startswith("Audio_")}
         text_models = {k: v for k, v in self.results.items() if k.startswith("Text_")}
 
-        best_audio_name, best_audio = max(audio_models.items(), key=lambda x: x[1]["f1"])
-        best_text_name, best_text = max(text_models.items(), key=lambda x: x[1]["f1"])
+        if not audio_models or not text_models:
+            return  # safety fail-safe
+
+        best_audio = max(audio_models.items(), key=lambda x: x[1]["f1"])[1]
+        best_text = max(text_models.items(), key=lambda x: x[1]["f1"])[1]
 
         proba_fused = (best_audio["proba"] + best_text["proba"]) / 2
         metrics = threshold_search(y_test, proba_fused)
@@ -119,7 +123,7 @@ class DepressionDetectionExperiment:
         audio = {k: v for k, v in self.results.items() if k.startswith("Audio_")}
         text = {k: v for k, v in self.results.items() if k.startswith("Text_")}
         early = {k: v for k, v in self.results.items() if k.startswith("Early_")}
-        late = {"Late_Average": self.results["Late_Average"]}
+        late = {"Late_Average": self.results.get("Late_Average")}
 
         print_results_table(audio, "Audio Models")
         print_results_table(text, "Text Models")
@@ -128,6 +132,7 @@ class DepressionDetectionExperiment:
 
         base_models = {k: v for k, v in self.results.items() if k != "Late_Average"}
         best_name, best_metrics = max(base_models.items(), key=lambda x: x[1]["f1"])
+
         return best_name, best_metrics
 
     def explain(self, best_name, best_metrics):
@@ -142,7 +147,11 @@ class DepressionDetectionExperiment:
             model, X_train, X_test
         )
 
-        shap.summary_plot(shap_values, X_test, feature_names=feature_names, show=True)
+        try:
+            shap.summary_plot(shap_values, X_test, feature_names=feature_names, show=False)
+        except:
+            pass
+
         return shap_values, explainer
 
     def run(self):
