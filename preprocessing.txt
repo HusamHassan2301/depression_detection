@@ -1,0 +1,100 @@
+Preprocessing Documentation
+
+This document explains how the preprocessing pipeline prepares audio, text, and label files for multimodal depression‑detection experiments.
+
+1. Overview
+
+The preprocessing stage ensures all data modalities are aligned, cleaned, and converted into the correct format for machine‑learning experiments. It prepares:
+
+- Audio feature files  
+- Text embedding files  
+- Labels  
+- Train/dev/test splits  
+
+important note: All files must share a common `Participant_ID` column to allow correct indexing.
+
+
+
+2. Audio Preprocessing
+
+Input  
+Raw audio recordings from the DAIC/E‑DAIC dataset.
+
+Steps  
+1. Segment or resample audio where necessary.  
+2. Extract wav2vec2 embeddings (CLS token or pooled output).  
+3. Extract eGeMAPS acoustic features using OpenSmile.  
+4. Concatenate or store feature vectors as rows in a CSV file.
+
+Output file  
+`audio_features_wav2vec2_egemaps.csv`
+
+Columns:  
+- `Participant_ID`  
+- 100s of numerical features  
+
+
+3. Text Preprocessing
+
+Input  
+Transcribed interview text from DAIC/E‑DAIC.
+
+Steps  
+1. Clean text (lowercasing, punctuation handling, diarisation fixes).  
+2. Compute RoBERTa GoEmotions embeddings (mean-pooled token embeddings).  
+3. Optionally append sentiment/emotion probabilities.
+
+Output file  
+`text_features_roberta_go_emotions.csv`
+
+Columns:  
+- `Participant_ID`  
+- Dense numerical embeddings  
+
+4. Labels
+
+Input  
+DAIC/E‑DAIC structured labels.
+
+Steps  
+1. Load label file  
+2. Standardise column to `Participant_ID`  
+3. Extract the binary depression label  
+4. Ensure IDs match audio/text files  
+
+Output  
+`detailed_lables.csv`
+
+Columns:  
+- `Participant_ID`  
+- `Depression_label`
+
+5. Train/Dev/Test Splits
+
+Split files must be simple CSV files containing only `Participant_ID`:
+
+- `train_split.csv`  
+- `dev_split.csv`  
+- `test_split.csv`  
+
+These define the experiment splits used by all models.
+
+6. Directory Structure
+
+Place preprocessing outputs as follows:
+data/
+├── processed/
+│   ├── audio_features_wav2vec2_egemaps.csv
+│   ├── text_features_roberta_go_emotions.csv
+└── labels/
+    ├── detailed_lables.csv
+    ├── train_split.csv
+    ├── dev_split.csv
+    └── test_split.csv
+
+
+7. Notes
+
+- Data files **cannot** be uploaded to GitHub due to DAIC/E‑DAIC licensing.
+- The preprocessing code should not contain raw data.  
+- Users must obtain the dataset independently.
